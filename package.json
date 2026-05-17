@@ -1,0 +1,17 @@
+{
+  "name": "factguard",
+  "version": "1.0.0",
+  "description": "FactGuard - AI-powered fact checker using Gemini Pro",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "serpapi": "^2.1.0",
+    "serpapi": "^2.2.1"
+  }
+}

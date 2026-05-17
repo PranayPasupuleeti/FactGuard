@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FactGuard - AI Fact Checker</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="gradient-bg"></div>
+
+  <nav class="navbar">
+    <div class="container">
+      <div class="logo">
+        <span class="logo-icon">&#128737;</span>
+        <span class="logo-text">FactGuard</span>
+      </div>
+      <div class="tagline">AI-Powered Truth Verification</div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Stay <span class="gradient-text">Smart</span>, Stay <span class="gradient-text">True</span></h1>
+      <p class="subtitle">Enter any news headline, statement, or claim — and let AI analyze its truthfulness instantly.</p>
+    </section>
+
+    <section class="input-section">
+      <div class="input-card">
+        <div class="input-wrapper">
+          <textarea id="claimInput" placeholder='Paste a news headline or type a claim...&#10;e.g., "The Earth is flat" or "Vaccines cause autism"' rows="3"></textarea>
+          <button id="checkBtn" class="check-btn">
+            <span class="btn-text">Verify Now</span>
+            <span class="btn-icon">&#10132;</span>
+            <div class="spinner hidden"></div>
+          </button>
+        </div>
+        <p class="input-hint">FactGuard uses AI to cross-reference claims against known facts.</p>
+      </div>
+    </section>
+
+    <section id="resultSection" class="result-section hidden">
+      <div class="result-card">
+        <div class="result-header">
+          <div class="verdict-badge" id="verdictBadge">
+            <span class="verdict-icon"></span>
+            <span class="verdict-text" id="verdictText">True</span>
+          </div>
+          <div class="confidence-meter">
+            <div class="confidence-label">Confidence</div>
+            <div class="confidence-bar">
+              <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+            <div class="confidence-value" id="confidenceValue">0%</div>
+          </div>
+          <div class="confidence-reason" id="confidenceReason"></div>
+        </div>
+
+        <div class="claim-display">
+          <strong>Claim:</strong>
+          <p id="claimDisplay"></p>
+        </div>
+
+        <div class="explanation-section">
+          <h3>Analysis</h3>
+          <p id="explanationText"></p>
+        </div>
+
+        <div class="evidence-section">
+          <h3>Key Evidence</h3>
+          <ul id="evidenceList"></ul>
+        </div>
+
+        <div class="sources-section">
+          <h3>Sources</h3>
+          <ul id="sourcesList"></ul>
+        </div>
+
+        <div id="newsSection" class="news-section hidden">
+          <h3>News Coverage</h3>
+          <ul id="newsList"></ul>
+        </div>
+
+        <div id="additionalInfoSection" class="additional-info-section hidden">
+          <h3>Additional Info</h3>
+          <p id="additionalInfoText"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="examples-section">
+      <h2>Try an Example</h2>
+      <div class="examples-grid">
+        <button class="example-btn" data-claim="The Great Wall of China is visible from space with the naked eye">The Great Wall is visible from space</button>
+        <button class="example-btn" data-claim="Humans only use 10% of their brain">Humans use only 10% of their brain</button>
+        <button class="example-btn" data-claim="Water boils at 100 degrees Celsius at sea level">Water boils at 100°C at sea level</button>
+        <button class="example-btn" data-claim="COVID-19 vaccines contain microchips for tracking">COVID-19 vaccines contain microchips</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Powered by <strong>AI</strong> &mdash; Always verify critical information through multiple trusted sources.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
