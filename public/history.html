@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FactGuard - History</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="gradient-bg"></div>
+
+  <nav class="navbar">
+    <div class="container">
+      <div class="logo">
+        <span class="logo-icon">&#128737;</span>
+        <span class="logo-text">FactGuard</span>
+      </div>
+      <div class="nav-links">
+        <a href="/" class="nav-link">Home</a>
+        <a href="/history.html" class="nav-link active">History</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Check <span class="gradient-text">History</span></h1>
+      <p class="subtitle">Your previous fact-check results, stored locally in your browser.</p>
+    </section>
+
+    <section id="historySection">
+      <div id="historyList"></div>
+      <div id="emptyState" class="empty-state">
+        <p>No history yet. Go back to the <a href="/">home page</a> and check some claims!</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Powered by <strong>Web Search</strong> &mdash; Always verify critical information through multiple trusted sources.</p>
+    </div>
+  </footer>
+
+  <script>
+    function loadHistory() {
+      const history = JSON.parse(localStorage.getItem('factguard_history') || '[]');
+      const list = document.getElementById('historyList');
+      const empty = document.getElementById('emptyState');
+
+      if (history.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+
+      empty.style.display = 'none';
+      list.innerHTML = history.map((item, i) => {
+        const vClass = (item.verdict || '').toLowerCase().replace(/\\s+/g, '-');
+        const date = new Date(item.timestamp);
+        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return '<div class="history-card">' +
+          '<div class="history-header">' +
+            '<span class="history-verdict verdict-badge ' + vClass + '">' + (item.verdict || 'Unverifiable') + '</span>' +
+            '<span class="history-confidence">' + (item.confidence || 0) + '%</span>' +
+            '<span class="history-date">' + dateStr + '</span>' +
+          '</div>' +
+          '<p class="history-claim">' + escapeHtml(item.claim) + '</p>' +
+          '<p class="history-explanation">' + escapeHtml((item.explanation || '').slice(0, 200)) + '</p>' +
+        '</div>';
+      }).join('');
+    }
+
+    function escapeHtml(text) {
+      const d = document.createElement('div');
+      d.textContent = text;
+      return d.innerHTML;
+    }
+
+    loadHistory();
+  </script>
+</body>
+</html>

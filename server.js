@@ -56,135 +56,150 @@ function extractSourceName(url) {
   }
 }
 
+const AUTHORITY_DOMAINS = [
+  '.gov', '.edu', '.org',
+  'who.int', 'un.org', 'unesco.org', 'nasa.gov', 'cdc.gov', 'nih.gov',
+  'science.org', 'nature.com', 'springer.com', 'sciencedirect.com',
+  'reuters.com', 'apnews.com', 'bbc.com', 'bbc.co.uk',
+  'theconversation.com', 'scientificamerican.com', 'newscientist.com',
+];
+
+function getDomainAuthority(link) {
+  const lower = link.toLowerCase();
+  for (const d of AUTHORITY_DOMAINS) {
+    if (lower.includes(d)) return 2;
+  }
+  if (FACT_CHECK_DOMAINS.some(d => lower.includes(d))) return 2;
+  if (NEWS_DOMAINS.some(d => lower.includes(d))) return 1;
+  return 0;
+}
+
 function analyzeResults(organic, claim) {
-  const factCheckResults = [];
-  let truthScore = 0;
-  let falseScore = 0;
+  let factCheckSources = [];
+  let strongForCount = 0;
+  let strongAgainstCount = 0;
+  let weakForCount = 0;
+  let weakAgainstCount = 0;
   const evidenceItems = [];
   const sourceLinks = [];
   const newsSources = [];
-  let explanationParts = [];
-  let additionalInfoParts = [];
 
   for (const result of organic) {
     const snippet = (result.snippet || '').toLowerCase();
     const title = result.title || '';
     const link = result.link || '';
     const lowerLink = link.toLowerCase();
+    const authority = getDomainAuthority(link);
+    const isFactCheck = FACT_CHECK_DOMAINS.some(d => lowerLink.includes(d));
+    const isNews = NEWS_DOMAINS.some(d => lowerLink.includes(d));
     const combined = snippet + ' ' + title.toLowerCase();
 
-    const isFactCheckSite = FACT_CHECK_DOMAINS.some(d => lowerLink.includes(d));
-    const isNewsSite = NEWS_DOMAINS.some(d => lowerLink.includes(d));
+    const truthHits = TRUTH_KEYWORDS.filter(k => combined.includes(k)).length;
+    const falseHits = FALSE_KEYWORDS.filter(k => combined.includes(k)).length;
+    const net = truthHits - falseHits;
 
-    const truthMatches = TRUTH_KEYWORDS.filter(k => combined.includes(k)).length;
-    const falseMatches = FALSE_KEYWORDS.filter(k => combined.includes(k)).length;
-
-    if (isFactCheckSite) {
-      factCheckResults.push({ result, truthMatches, falseMatches });
+    if (isFactCheck) {
+      factCheckSources.push({ result, net, authority, snippet: result.snippet, title: result.title, link });
     }
 
-    if (isNewsSite && title) {
+    if (isNews && title) {
       newsSources.push({ title, link, source: extractSourceName(link) });
     }
 
-    truthScore += truthMatches;
-    falseScore += falseMatches;
+    if (authority === 2) {
+      if (net > 0) strongForCount++;
+      else if (net < 0) strongAgainstCount++;
+    } else {
+      if (net > 0) weakForCount++;
+      else if (net < 0) weakAgainstCount++;
+    }
 
     if (result.snippet) evidenceItems.push(result.snippet);
     if (link) sourceLinks.push(link);
   }
 
-  const totalScore = truthScore + falseScore;
-  let confidence = 0;
-  let confidenceReason = '';
+  const forScore = strongForCount * 3 + weakForCount;
+  const againstScore = strongAgainstCount * 3 + weakAgainstCount;
+
   let verdict = 'Unverifiable';
-  const totalSources = organic.length;
+  let confidence = 15;
+  let confidenceReason = '';
+  let explanation = '';
+  let additionalInfo = '';
 
-  explanationParts.push(`We searched for information about this claim across ${totalSources} different web sources and analyzed the results to determine accuracy.`);
+  const totalWeighted = forScore + againstScore;
+  const ratio = totalWeighted > 0 ? forScore / totalWeighted : 0.5;
 
-  if (factCheckResults.length > 0) {
-    const fcTruth = factCheckResults.reduce((s, r) => s + r.truthMatches, 0);
-    const fcFalse = factCheckResults.reduce((s, r) => s + r.falseMatches, 0);
-    const fcSites = factCheckResults.map(r => extractSourceName(r.result.link)).join(', ');
-    explanationParts.push(`Out of these results, ${factCheckResults.length} came from recognized fact-checking or authoritative sources such as ${fcSites}, which we weigh more heavily in our analysis.`);
+  if (factCheckSources.length > 0) {
+    const fcNet = factCheckSources.reduce((s, f) => s + f.net, 0);
+    const fcTitles = factCheckSources.slice(0, 2).map(f => f.title).join('; ');
+    const fcSites = factCheckSources.map(f => extractSourceName(f.link)).join(', ');
 
-    if (fcTruth > fcFalse) {
-      confidence = Math.min(60 + (fcTruth / (fcTruth + fcFalse)) * 30, 92);
-      confidenceReason = `Base confidence of 60% from fact-check sources, increased by the ratio of supporting vs contradicting signals (${fcTruth} supporting vs ${fcFalse} contradicting keyword matches across ${factCheckResults.length} fact-check sources).`;
-      verdict = confidence >= 85 ? 'True' : 'Mostly True';
-      explanationParts.push('The fact-checking sources we found support or confirm the accuracy of this claim. Authoritative sources use language like confirmed, verified, or accurate, indicating the claim is credible and backed by evidence.');
-    } else if (fcFalse > fcTruth) {
-      confidence = Math.min(60 + (fcFalse / (fcTruth + fcFalse)) * 30, 92);
-      confidenceReason = `Base confidence of 60% from fact-check sources, increased by the ratio of contradicting vs supporting signals (${fcFalse} contradicting vs ${fcTruth} supporting keyword matches across ${factCheckResults.length} fact-check sources).`;
-      verdict = confidence >= 85 ? 'False' : 'Mostly False';
-      explanationParts.push('The fact-checking sources we found contradict or debunk this claim. These sources use language indicating the claim is misleading, false, or lacks evidence. This claim is not accurate and is based on misinformation.');
+    if (fcNet > 0) {
+      confidence = Math.min(75 + Math.abs(fcNet) * 3, 95);
+      verdict = 'True';
+      confidenceReason = `Fact-check sources (${fcSites}) support this claim. ${Math.abs(fcNet)} more supporting than contradicting keyword signals found across ${factCheckSources.length} authoritative fact-check results.`;
+      explanation = `This claim is TRUE. Multiple fact-checking sources confirm its accuracy. Key sources include: ${fcTitles}. These are reputable fact-checking organizations that specialize in verifying claims.`;
+    } else if (fcNet < 0) {
+      confidence = Math.min(75 + Math.abs(fcNet) * 3, 95);
+      verdict = 'False';
+      confidenceReason = `Fact-check sources (${fcSites}) contradict this claim. ${Math.abs(fcNet)} more contradicting than supporting keyword signals found across ${factCheckSources.length} authoritative fact-check results.`;
+      explanation = `This claim is FALSE. Multiple fact-checking sources refute it. Key sources include: ${fcTitles}. These organizations have investigated this claim and found it to be inaccurate or misleading.`;
+    } else {
+      confidence = 50;
+      verdict = 'Unverifiable';
+      confidenceReason = `Fact-check sources found but they show mixed or neutral signals (${factCheckSources.length} sources).`;
+      explanation = `This claim could not be clearly verified. Fact-checking sources were found but they do not provide a clear verdict. Review the evidence below.`;
     }
-  }
+  } else if (totalWeighted > 0) {
+    const strongDomains = organic.filter(r => getDomainAuthority(r.link) === 2);
+    const topSnippets = organic.slice(0, 3).map(r => r.snippet).filter(Boolean);
 
-  if (totalScore > 0 && verdict === 'Unverifiable') {
-    const ratio = truthScore / totalScore;
-    const truthKws = TRUTH_KEYWORDS.filter(k => organic.some(r => (r.snippet + ' ' + r.title).toLowerCase().includes(k)));
-    const falseKws = FALSE_KEYWORDS.filter(k => organic.some(r => (r.snippet + ' ' + r.title).toLowerCase().includes(k)));
-
-    if (truthKws.length > 0) {
-      explanationParts.push(`In our general web search, we detected supporting language such as "${truthKws.slice(0, 3).join('", "')}" across multiple sources.`);
-    }
-    if (falseKws.length > 0) {
-      explanationParts.push(`We also detected contradicting language such as "${falseKws.slice(0, 3).join('", "')}" in some sources.`);
-    }
-
-    if (ratio > 0.7) {
-      confidence = Math.round(50 + ratio * 20);
-      confidenceReason = `Base confidence of 50% from general web sources, adjusted up because supporting keyword ratio was ${Math.round(ratio * 100)}% (${truthScore} supporting vs ${falseScore} contradicting keyword matches).`;
-      verdict = confidence >= 65 ? 'Mostly True' : 'Partially True';
-      explanationParts.push('A clear majority of web sources support this claim. The evidence leans heavily in its favor across multiple sources.');
-    } else if (ratio < 0.3) {
-      confidence = Math.round(50 + (1 - ratio) * 20);
-      confidenceReason = `Base confidence of 50% from general web sources, adjusted up because contradicting keyword ratio was ${Math.round((1 - ratio) * 100)}% (${falseScore} contradicting vs ${truthScore} supporting keyword matches).`;
-      verdict = confidence >= 65 ? 'Mostly False' : 'Partially False';
-      explanationParts.push('A clear majority of web sources contradict this claim. The evidence found suggests it is inaccurate or misleading.');
+    if (ratio > 0.6) {
+      confidence = Math.min(50 + Math.round(ratio * 30), 80);
+      verdict = 'True';
+      confidenceReason = `Out of ${organic.length} search results, ${forScore} weighted signals support vs ${againstScore} against. ${strongDomains.length} high-authority sources found. Confidence limited without dedicated fact-check sources.`;
+      explanation = `This claim appears to be TRUE based on web sources. The general consensus from search results supports it. ${topSnippets[0] || ''}`;
+    } else if (ratio < 0.4) {
+      confidence = Math.min(50 + Math.round((1 - ratio) * 30), 80);
+      verdict = 'False';
+      confidenceReason = `Out of ${organic.length} search results, ${againstScore} weighted signals contradict vs ${forScore} support. ${strongDomains.length} high-authority sources found. Confidence limited without dedicated fact-check sources.`;
+      explanation = `This claim appears to be FALSE based on web sources. The general consensus from search results contradicts it. ${topSnippets[0] || ''}`;
     } else {
       confidence = 30;
-      confidenceReason = `Confidence set to 30% because general web sources are mixed (${truthScore} supporting vs ${falseScore} contradicting keyword matches). The ratio of ${Math.round(ratio * 100)}% supporting is too close to 50% to be decisive.`;
-      verdict = 'Partially True';
-      explanationParts.push('Web sources are divided on this claim, with some supporting and some contradicting it. This claim may be nuanced or depend on specific context. Review the evidence below and verify through additional sources.');
+      verdict = 'Unverifiable';
+      confidenceReason = `Web sources are divided (${forScore} supporting vs ${againstScore} contradicting weighted signals across ${organic.length} results). No clear consensus.`;
+      explanation = `This claim could not be clearly verified. Web sources are mixed on this topic, with some supporting and some contradicting it. ${topSnippets[0] || ''} Review the evidence below.`;
     }
-  }
-
-  if (verdict === 'Unverifiable') {
-    confidence = 15;
-    confidenceReason = 'Default low confidence of 15% because no fact-check sources were found and general web sources lacked sufficient supporting or contradicting keywords to make an assessment. Higher confidence requires clearer signals from authoritative sources.';
-    explanationParts.push('We could not find enough clear information to assess the accuracy of this claim. The available search results did not contain strong supporting or contradicting language. Review the sources below and try searching with different keywords for more information.');
+  } else {
+    explanation = `No clear signals found in search results for this claim. The web sources returned do not contain strong confirming or contradicting language. Try rephrasing the claim or searching with different keywords.`;
   }
 
   const usefulSnippets = organic.map(r => r.snippet).filter(Boolean).slice(0, 3);
   if (usefulSnippets.length > 0) {
-    additionalInfoParts.push(`Key context from search results: ${usefulSnippets.join(' ')}`);
+    additionalInfo += `Key context: ${usefulSnippets.join(' ')}`;
   }
 
-  if (factCheckResults.length > 0) {
-    const fcSites = factCheckResults.map(r => extractSourceName(r.result.link)).join(', ');
-    const topFc = factCheckResults.slice(0, 2).map(r => `"${r.result.title}"`).join(' and ');
-    additionalInfoParts.push(`Fact-check verdicts found: ${topFc} from sources like ${fcSites}.`);
+  if (factCheckSources.length > 0) {
+    const fcSites = factCheckSources.map(f => extractSourceName(f.link)).join(', ');
+    const fcTitles = factCheckSources.slice(0, 2).map(f => `"${f.title}"`).join(' and ');
+    additionalInfo += ` Fact-check verdicts from ${fcSites}: ${fcTitles}.`;
   }
 
   if (newsSources.length > 0) {
     const newsTitles = newsSources.slice(0, 2).map(s => `"${s.title}"`).join(' and ');
-    additionalInfoParts.push(`Related news coverage: ${newsTitles} from ${newsSources.map(s => s.source).join(', ')}.`);
+    additionalInfo += ` News coverage: ${newsTitles} from ${newsSources.map(s => s.source).join(', ')}.`;
   }
 
-  const reducedEvidence = evidenceItems.slice(0, 5);
-  const reducedSources = sourceLinks.slice(0, 5);
-  const reducedNewsSources = newsSources.slice(0, 5);
-  const explanation = explanationParts.join(' ') || 'Analysis based on web search results.';
-  const additionalInfo = additionalInfoParts.join(' ');
-
   return {
-    verdict, confidence: Math.round(confidence), confidenceReason,
+    verdict,
+    confidence: Math.round(confidence),
+    confidenceReason,
     explanation,
-    evidence: reducedEvidence, sources: reducedSources,
-    newsSources: reducedNewsSources,
-    additionalInfo,
+    evidence: evidenceItems.slice(0, 5),
+    sources: sourceLinks.slice(0, 5),
+    newsSources: newsSources.slice(0, 5),
+    additionalInfo: additionalInfo.trim(),
   };
 }
 

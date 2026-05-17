@@ -67,7 +67,22 @@ async function checkClaim() {
   }
 }
 
+function saveHistory(claim, data) {
+  let history = JSON.parse(localStorage.getItem('factguard_history') || '[]');
+  history.unshift({
+    claim,
+    verdict: data.verdict,
+    confidence: data.confidence,
+    explanation: data.explanation,
+    timestamp: new Date().toISOString(),
+  });
+  if (history.length > 50) history = history.slice(0, 50);
+  localStorage.setItem('factguard_history', JSON.stringify(history));
+}
+
 function displayResult(data, claim) {
+  saveHistory(claim, data);
+
   const verdict = data.verdict || 'Unverifiable';
   const confidence = data.confidence || 0;
 
