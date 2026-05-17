@@ -74,6 +74,7 @@ function saveHistory(claim, data) {
     verdict: data.verdict,
     confidence: data.confidence,
     explanation: data.explanation,
+    sources: data.sources || [],
     timestamp: new Date().toISOString(),
   });
   if (history.length > 50) history = history.slice(0, 50);

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FactGuard - Citations</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="gradient-bg"></div>
+
+  <nav class="navbar">
+    <div class="container">
+      <div class="logo">
+        <span class="logo-icon">&#128737;</span>
+        <span class="logo-text">FactGuard</span>
+      </div>
+      <div class="nav-links">
+        <a href="/" class="nav-link">Home</a>
+        <a href="/history.html" class="nav-link">History</a>
+        <a href="/citations.html" class="nav-link active">Citations</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1><span class="gradient-text">Cited Sources</span></h1>
+      <p class="subtitle">All your saved source links in MLA or APA format. Click copy to use them.</p>
+    </section>
+
+    <section id="citationsSection">
+      <div class="format-toggle">
+        <button id="mlaBtn" class="format-btn active" onclick="setFormat('mla')">MLA</button>
+        <button id="apaBtn" class="format-btn" onclick="setFormat('apa')">APA</button>
+      </div>
+      <div id="citationsList"></div>
+      <div id="emptyState" class="empty-state">
+        <p>No citations yet. Go back to the <a href="/">home page</a> and check some claims!</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Powered by <strong>Web Search</strong> &mdash; Always verify critical information through multiple trusted sources.</p>
+    </div>
+  </footer>
+
+  <script>
+    let currentFormat = 'mla';
+    let allSources = [];
+
+    function extractDomain(url) {
+      try { return new URL(url).hostname.replace('www.', ''); } catch { return url; }
+    }
+
+    function extractTitle(url) {
+      try {
+        const path = new URL(url).pathname.replace(/\/$/, '').split('/').pop();
+        return path.replace(/[-_]/g, ' ').replace(/\.[a-z]+$/, '').replace(/\b\w/g, c => c.toUpperCase()) || 'Web Page';
+      } catch { return 'Web Page'; }
+    }
+
+    function formatDate(now) {
+      const months = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
+      return months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+    }
+
+    function formatDateAPA(now) {
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+    }
+
+    function mlaCitation(url) {
+      const domain = extractDomain(url);
+      const title = extractTitle(url);
+      const accessed = formatDate(new Date());
+      return '"' + title + '." ' + domain + ', Accessed ' + accessed + ', ' + url + '.';
+    }
+
+    function apaCitation(url) {
+      const domain = extractDomain(url);
+      const title = extractTitle(url);
+      const retrieved = formatDateAPA(new Date());
+      return domain + '. (n.d.). ' + title + '. Retrieved ' + retrieved + ', from ' + url;
+    }
+
+    function loadCitations() {
+      const history = JSON.parse(localStorage.getItem('factguard_history') || '[]');
+      allSources = [];
+
+      history.forEach(item => {
+        if (item.sources && item.sources.length > 0) {
+          item.sources.forEach(src => {
+            allSources.push({ claim: item.claim, verdict: item.verdict, url: src, timestamp: item.timestamp });
+          });
+        }
+      });
+
+      renderCitations();
+    }
+
+    function renderCitations() {
+      const list = document.getElementById('citationsList');
+      const empty = document.getElementById('emptyState');
+
+      if (allSources.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+
+      empty.style.display = 'none';
+      list.innerHTML = allSources.map((s, i) => {
+        const date = new Date(s.timestamp);
+        const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const vClass = (s.verdict || '').toLowerCase().replace(/\s+/g, '-');
+        const citation = currentFormat === 'mla' ? mlaCitation(s.url) : apaCitation(s.url);
+        return '<div class="citation-card">' +
+          '<div class="citation-meta">' +
+            '<span class="history-verdict verdict-badge ' + vClass + '">' + (s.verdict || 'Unverifiable') + '</span>' +
+            '<span class="citation-date">' + dateStr + '</span>' +
+          '</div>' +
+          '<p class="citation-claim">' + escapeHtml(s.claim) + '</p>' +
+          '<div class="citation-format-label">' + currentFormat.toUpperCase() + '</div>' +
+          '<div class="citation-text" id="cite-text-' + i + '">' + escapeHtml(citation) + '</div>' +
+          '<div class="citation-url-row">' +
+            '<input class="citation-url" id="url-' + i + '" value="' + escapeHtml(s.url) + '" readonly>' +
+            '<button class="copy-btn" onclick="copyCitation(' + i + ')">Copy Citation</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function copyCitation(id) {
+      const el = document.getElementById('cite-text-' + id);
+      const text = el.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btns = document.querySelectorAll('.copy-btn');
+        const btn = btns[id];
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 1500);
+      });
+    }
+
+    function setFormat(fmt) {
+      currentFormat = fmt;
+      document.getElementById('mlaBtn').className = 'format-btn' + (fmt === 'mla' ? ' active' : '');
+      document.getElementById('apaBtn').className = 'format-btn' + (fmt === 'apa' ? ' active' : '');
+      renderCitations();
+    }
+
+    function escapeHtml(text) {
+      const d = document.createElement('div');
+      d.textContent = text;
+      return d.innerHTML;
+    }
+
+    loadCitations();
+  </script>
+</body>
+</html>

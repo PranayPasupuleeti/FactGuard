@@ -146,10 +146,24 @@ function analyzeResults(organic, claim) {
       confidenceReason = `Fact-check sources (${fcSites}) contradict this claim. ${Math.abs(fcNet)} more contradicting than supporting keyword signals found across ${factCheckSources.length} authoritative fact-check results.`;
       explanation = `This claim is FALSE. Multiple fact-checking sources refute it. Key sources include: ${fcTitles}. These organizations have investigated this claim and found it to be inaccurate or misleading.`;
     } else {
-      confidence = 50;
-      verdict = 'Unverifiable';
-      confidenceReason = `Fact-check sources found but they show mixed or neutral signals (${factCheckSources.length} sources).`;
-      explanation = `This claim could not be clearly verified. Fact-checking sources were found but they do not provide a clear verdict. Review the evidence below.`;
+      const towardsTruth = factCheckSources.filter(f => f.net > 0).length;
+      const towardsFalse = factCheckSources.filter(f => f.net < 0).length;
+      if (towardsTruth > towardsFalse) {
+        confidence = 55;
+        verdict = 'Mostly True';
+        confidenceReason = `Fact-check sources lean slightly toward supporting this claim (${towardsTruth} supporting vs ${towardsFalse} contradicting).`;
+        explanation = `This claim is MOSTLY TRUE. While fact-check sources were found, the signals are mixed. However, more sources lean toward supporting the claim than contradicting it.`;
+      } else if (towardsFalse > towardsTruth) {
+        confidence = 55;
+        verdict = 'Mostly False';
+        confidenceReason = `Fact-check sources lean slightly toward contradicting this claim (${towardsFalse} contradicting vs ${towardsTruth} supporting).`;
+        explanation = `This claim is MOSTLY FALSE. While fact-check sources were found, the signals are mixed. More sources lean toward contradicting the claim than supporting it.`;
+      } else {
+        confidence = 40;
+        verdict = 'Partially True';
+        confidenceReason = `Fact-check sources show neutral or equally mixed signals (${factCheckSources.length} sources).`;
+        explanation = `This claim has mixed evidence. Fact-check sources were found but the results are not clear-cut. Review the evidence below.`;
+      }
     }
   } else if (totalWeighted > 0) {
     const strongDomains = organic.filter(r => getDomainAuthority(r.link) === 2);
@@ -166,13 +180,28 @@ function analyzeResults(organic, claim) {
       confidenceReason = `Out of ${organic.length} search results, ${againstScore} weighted signals contradict vs ${forScore} support. ${strongDomains.length} high-authority sources found. Confidence limited without dedicated fact-check sources.`;
       explanation = `This claim appears to be FALSE based on web sources. The general consensus from search results contradicts it. ${topSnippets[0] || ''}`;
     } else {
-      confidence = 30;
-      verdict = 'Unverifiable';
-      confidenceReason = `Web sources are divided (${forScore} supporting vs ${againstScore} contradicting weighted signals across ${organic.length} results). No clear consensus.`;
-      explanation = `This claim could not be clearly verified. Web sources are mixed on this topic, with some supporting and some contradicting it. ${topSnippets[0] || ''} Review the evidence below.`;
+      if (forScore > againstScore) {
+        confidence = 40;
+        verdict = 'Partially True';
+        confidenceReason = `Web sources lean slightly supporting (${forScore} vs ${againstScore} weighted signals across ${organic.length} results).`;
+        explanation = `This claim is PARTIALLY TRUE. Web sources are mixed but lean toward supporting it. ${topSnippets[0] || ''}`;
+      } else if (againstScore > forScore) {
+        confidence = 40;
+        verdict = 'Partially False';
+        confidenceReason = `Web sources lean slightly contradicting (${againstScore} vs ${forScore} weighted signals across ${organic.length} results).`;
+        explanation = `This claim is PARTIALLY FALSE. Web sources are mixed but lean toward contradicting it. ${topSnippets[0] || ''}`;
+      } else {
+        confidence = 30;
+        verdict = 'Partially True';
+        confidenceReason = `Web sources are evenly divided (${forScore} vs ${againstScore} weighted signals across ${organic.length} results).`;
+        explanation = `This claim has mixed evidence. Sources are evenly split between supporting and contradicting. ${topSnippets[0] || ''}`;
+      }
     }
   } else {
-    explanation = `No clear signals found in search results for this claim. The web sources returned do not contain strong confirming or contradicting language. Try rephrasing the claim or searching with different keywords.`;
+    confidence = 20;
+    verdict = 'Unverifiable';
+    confidenceReason = 'No strong keyword signals found in search results. Low confidence.';
+    explanation = `No clear signals found in search results for this claim. The web sources returned do not contain strong confirming or contradicting language. Try rephrasing or checking back later.`;
   }
 
   const usefulSnippets = organic.map(r => r.snippet).filter(Boolean).slice(0, 3);
